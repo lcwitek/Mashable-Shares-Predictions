@@ -1,0 +1,51 @@
+---
+title: "Project 2"
+author: "Lauren Witek"
+date: "07/03/2020"
+output: github_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE)
+library(tidyverse)
+library(dplyr)
+library(caret)
+library(e1071)
+library(leaps)
+library(ggplot2)
+library(GGally)
+```
+
+```{r}
+news <- read_csv("C:\\Users\\Lauren\\Documents\\ST558\\Project 2\\OnlineNewsPopularity.csv")
+
+
+news$channel <- ifelse(news$data_channel_is_bus == 1, "Business", 
+                ifelse(news$data_channel_is_entertainment == 1, "Entertainment", 
+                ifelse(news$data_channel_is_lifestyle == 1, "Lifestlye", 
+                ifelse(news$data_channel_is_socmed == 1, "Social Media", 
+                ifelse(news$data_channel_is_tech == 1, "Technology", 
+                ifelse(news$data_channel_is_world == 1, "World", "Other"))))))
+
+newsLess <- news %>% filter(weekday_is_monday == 1) %>%  select(shares, channel, n_tokens_title, n_tokens_content, num_imgs, num_videos, rate_negative_words, rate_positive_words)
+
+```
+
+```{r}
+train <- sample(1:nrow(newsLess), size = nrow(newsLess)*0.7)
+test <- dplyr::setdiff(1:nrow(newsLess), train)
+
+newsTrain <- newsLess[train, ]
+newsTest <- newsLess[test, ]
+```
+
+
+
+```{r, echo=FALSE}
+summary(lm(shares ~ ., newsLess))
+
+
+
+```
+
+
