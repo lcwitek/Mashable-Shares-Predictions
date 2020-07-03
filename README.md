@@ -24,3 +24,15 @@ apply(reports, MARGIN = 1, FUN = function(x){
 
 
 [Monday is Available Here](weekday_is_monday.md)
+
+[Tuesday is Available Here](weekday_is_tuesday.md)
+
+[Wednesday is Available Here](weekday_is_wednesday.md)
+
+[Thursday is Available Here](weekday_is_thursday.md)
+
+[Friday is Available Here](weekday_is_friday.md)
+
+[Saturday is Available Here](weekday_is_Saturday.md)
+
+[Sunday is Available Here](weekday_is_Sunday.md)
