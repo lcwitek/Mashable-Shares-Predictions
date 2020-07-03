@@ -33,6 +33,6 @@ apply(reports, MARGIN = 1, FUN = function(x){
 
 [Friday is Available Here](weekday_is_friday.md)
 
-[Saturday is Available Here](weekday_is_Saturday.md)
+[Saturday is Available Here](weekday_is_saturday.md)
 
-[Sunday is Available Here](weekday_is_Sunday.md)
+[Sunday is Available Here](weekday_is_sunday.md)
