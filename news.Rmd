@@ -1,0 +1,308 @@
+---
+title: "Project 2"
+author: "Lauren Witek"
+date: "7/3/2020"
+output: 
+  rmarkdown::github_document:
+    toc: yes
+    toc_depth: 2
+params: 
+  days: "weekday_is_monday"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, message = FALSE)
+library(tidyverse)
+library(dplyr)
+library(caret)
+library(e1071)
+library(leaps)
+library(ggplot2)
+library(knitr)
+library(cowplot)
+library(rmarkdown)
+```
+
+
+
+# Introduction
+
+The dataset being used for this anaylsis can be found at [Online News Popularity Data Set](https://archive.ics.uci.edu/ml/datasets/Online+News+Popularity).
+
+This data set has information from articles that were published by [Mashable](www.mashable.com). It doe not contain the original content but some statistics associated with it. 
+
+There are in total 58 predictive attributes and 1 goal field. I have narrowed down those attributes to 13 using linear modeling selection techniques. The following variables are used in the analysis:
+
+  *num_hrefs: Number of links
+  *num_keywords: Number of keywords in the metadata
+  *kw_max_avg: Avg. keyword (max. shares)
+  *kw_avg_avg: Avg. keyword (avg. shares)                
+  *self_reference_max_shares: Max. shares of referenced articles in Mashable
+  *LDA_01: Closeness to LDA topic 1                     
+  *LDA_02: Closeness to LDA topic 2                    
+  *LDA_03: Closeness to LDA topic 3                    
+  *title_subjectivity: Title subjectivity         
+  *data_channel_is_entertainment: Is data channel 'Entertainment'?
+  *data_channel_is_socmed: Is data channel 'Social Media'?
+  *data_channel_is_tech: Is data channel 'Tech'?
+  *shares
+
+## Purpose
+
+The purpose of this analysis is to find the best model for predicting values for the `shares` variable. The three models I will be using are k Nearest Neighbors, Classification Tree, and Random Forest. 
+
+
+# Data Analysis
+
+
+## Reading in the data and setting up the train and test groups 
+```{r}
+news <- read_csv("C:\\Users\\Lauren\\Documents\\ST558\\Project 2\\OnlineNewsPopularity.csv")
+
+news$class <- if_else(news$shares < 1400, 0, 1)
+news$class <- factor(news$class, levels = c(0, 1), labels = c("Low", "High"))
+
+newsies <- news %>% filter(weekday_is_monday == 1) %>% select(class, num_hrefs, num_keywords, kw_max_avg, kw_avg_avg, self_reference_max_shares, LDA_01, LDA_02, LDA_03, title_subjectivity, data_channel_is_entertainment, data_channel_is_socmed, data_channel_is_tech)
+
+set.seed(50)
+train <- sample(1:nrow(newsies), size = nrow(newsies)*0.7)
+test <- dplyr::setdiff(1:nrow(newsies), train)
+
+newsTrain <- newsies[train, ]
+newsTest <- newsies[test, ]
+```
+
+
+Creating a new data set to easier visualize the the three channel groups. 
+```{r}
+
+channel <- newsTrain %>% mutate(channel = ifelse(newsTrain$data_channel_is_entertainment == 1, "Entertainment", 
+                                     ifelse(newsTrain$data_channel_is_socmed == 1, "Social Media", "Technology")))
+```
+
+## Data Plots and Summarizations
+
+This table shows the averages for the Title Subjectivity, Number of Links, Average Keyword Max Shares, the Average Keyword Average Shares, and the total for each of the classes. 
+```{r, message=FALSE}
+kable(newsies %>% group_by(class) %>% summarise(Avg_Title_Subj = mean(title_subjectivity), Avg_Num_Links = mean(num_hrefs), Avg_Max_Shares = mean(kw_max_avg), Avg_Shares = mean(kw_avg_avg),  n = n()))
+```
+
+
+This graph shows the count of low and high shares per channel type. 
+```{r}
+ggplot(channel, aes(x=class, fill = channel)) +
+  geom_bar(position = "dodge")
+```
+
+
+
+This plots shows the number of keywords in the metadata by the class.  
+```{r}
+ggplot(newsTrain, aes(x = class, y = num_keywords)) + 
+  geom_count(aes(color = ..n.., size = ..n..)) +
+  guides(color = "legend") +
+  labs(x = "Shares (Low < 1400, High >= 1400)")
+```
+
+
+This plot shows the scores for each of the channels for `LDA_01`, `LDA_02`, and `LDA_03`. It also is broken down by the amount of shares. 
+```{r}
+p1 <- ggplot(channel, aes(x = class, y = LDA_01)) + 
+  geom_point(aes(color = channel)) + 
+  labs(x = "Shares (Low < 1400, High >= 1400)")
+
+p2 <- ggplot(channel, aes(x = class, y = LDA_02)) + 
+  geom_point(aes(color = channel)) +
+  labs(x = "Shares (Low < 1400, High >= 1400)")
+
+p3 <- ggplot(channel, aes(x = class, y = LDA_03)) + 
+  geom_point(aes(color = channel)) +
+  labs(x = "Shares (Low < 1400, High >= 1400)")
+
+plot_grid(p1, p2, p3)
+```
+
+
+## k Nearest Numbers
+
+For k Nearest Neighbors, the idea is that you want to find the "closest" k observations from the training set to predict the class set ("low", "high"). Each point will be classified (or predicted) to the class with the highest probability.  
+
+
+Fitting the model and calculation the resampling based on cross-validation. 
+```{r}
+trctrl <- trainControl(method = "repeatedcv", number = 10, repeats = 3)
+
+set.seed(10)
+
+knnFit <- train(class ~ ., data = newsTrain, method = "knn",
+                trControl = trctrl, 
+                preProcess = c("center", "scale"),
+                tuneLength = 10
+                )
+knnFit
+```
+
+
+Plotting the variation in accuracy of the repeated cross-validation of `knnFit` with respect to the k values. 
+```{r}
+plot(knnFit$results[,1], knnFit$results[,2], xlab = "K value",
+     ylab = "Accuracy(Repeated Cross-Validation)", 
+     type = "o", col = "blue",
+     panel.first = grid(lty = 1)
+     )
+```
+
+
+`knnFit` is trained with the best k value. Next the predicted values of class for the test data set are pulled. 
+```{r}
+testPred <- predict(knnFit, newdata = newsTest)
+```
+
+
+The model accuracy for `knnFit`. 
+```{r}
+knnFitMat <- confusionMatrix(testPred, newsTest$class)
+knnFitMat
+```
+
+
+Calculation of the misclassification rate for the `knnFit` model.
+```{r}
+tbl1 <- knnFitMat$table
+
+misClass <- 1 - sum(diag(tbl1))/sum(tbl1)
+misClass
+```
+
+## Classification Tree
+
+Classification trees are also used to predict group membership. For any given region, the most prevalent case will be used for prediction. 
+
+
+Fitting the model and calculation the resampling based on cross-validation.
+```{r}
+set.seed(50)
+
+classTree <- train(class ~ ., data = newsTrain,
+                    method = "rpart",
+                    trControl = trctrl, 
+                    preProcess = c("center", "scale")
+                )
+
+classTree
+```
+
+
+
+Plotting the variation in accuracy of the repeated cross-validation of `classTree` with respect to the cp value. 
+```{r}
+plot(classTree$results[,1], classTree$results[,2], xlab = "cp value",
+     ylab = "Accuracy(Repeated Cross-Validation)", 
+     type = "o", col = "blue",
+     panel.first = grid(lty = 1)
+     )
+```
+
+
+`classTree` is trained with the best cp value. Next the predicted values of class for the test data set are pulled. 
+```{r}
+classPred <- predict(classTree, newdata = newsTest)
+```
+
+
+The model accuracy for `classTree`.
+```{r}
+classFitMat <- confusionMatrix(classPred, newsTest$class)
+classFitMat
+```
+
+
+Calculation of the misclassification rate for the `classTree` model.
+```{r}
+tbl2 <- classFitMat$table
+
+misClass2 <- 1 - sum(diag(tbl2))/sum(tbl2)
+misClass2
+```
+
+
+The chart shows the model accuracy and the misclassification for both the k Nearest Neighbors and the Classification Tree. 
+```{r}
+matrix(c(paste0(round(knnFitMat$overall[1]*100, 2), "%"), 
+         paste0(round(classFitMat$overall[1]*100, 2), "%"), 
+         round(misClass, 3), round(misClass2, 3)), 
+       ncol = 2, nrow = 2,
+       dimnames = list(c("k Nearest Neighbors", "Classification Tree"), 
+                       c("Model Accuracy", "Misclassification"))
+       )
+```
+
+
+
+## Random Forest 
+
+Random Forests create multiple trees from bootstrap samples and then average the results. They use a random subset of predictors for each tree fit. The reason for the random sampling is so that a strong predictor (or two) won't dominate the tree fits. This makes Random Forests predictions less correlated than if we were doing a Bagged Tree. 
+
+
+Fitting the model and calculating the resampling based on cross-validation
+```{r}
+set.seed(50)
+
+rfTree <- train(class ~ ., data = newsTrain, 
+                  method = "rf",
+                  trControl = trctrl, 
+                  preProcess = c("center", "scale")
+                )
+
+rfTree
+```
+
+
+Plotting the variation in accuracy of the repeated Bootstrap of `rfTree` with respect to the mtry value
+```{r}
+plot(rfTree$results[,1], rfTree$results[,2], xlab = "mtry value",
+     ylab = "Accuracy(Repeated Cross-Validation)", 
+     type = "o", col = "blue",
+     panel.first = grid(lty = 1)
+     )
+```
+
+
+`rfTree` is trained with the best mtry value. Next the predicted values of class for the test data set are pulled. 
+```{r}
+rfPred <- predict(rfTree, newdata = newsTest)
+```
+
+
+Model accuracy for the `rfTree`.
+```{r}
+rfFitMat <- confusionMatrix(rfPred, newsTest$class)
+rfFitMat
+```
+
+
+Calculation of the misclassification rate for the `classTree` model.
+```{r}
+tbl3 <- rfFitMat$table
+
+misClass3 <- 1 - sum(diag(tbl3))/sum(tbl3)
+misClass3
+```
+
+
+This chart shows the model accuracy and the misclassification rate for the k Nearest Neighbors,  the Classification Tree, and the Random Forests. 
+```{r}
+matrix(c(paste0(round(knnFitMat$overall[1]*100, 2), "%"), 
+         paste0(round(classFitMat$overall[1]*100, 2), "%"),
+         paste0(round(rfFitMat$overall[1]*100, 2), "%"),
+         round(misClass, 3), round(misClass2, 3), round(misClass3, 3)), 
+       ncol = 2, nrow = 3,
+       dimnames = list(c("k Nearest Neighbors", "Classification Tree", "Random Forest" ), 
+                       c("Model Accuracy", "Misclassification"))
+       )
+```
+
+
+
+
+

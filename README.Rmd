@@ -1,6 +1,11 @@
 ---
-title: "Untitled"
-output: github_document
+title: "Project 2"
+author: "Lauren Witek"
+date: "7/3/2020"
+output: 
+  rmarkdown::github_document:
+    toc: yes
+    toc_depth: 2
 ---
 
 ```{r setup, include=FALSE}
@@ -11,202 +16,26 @@ library(caret)
 library(e1071)
 library(leaps)
 library(ggplot2)
+library(knitr)
 library(cowplot)
+library(rmarkdown)
 ```
 
 
-```{r}
-news <- read_csv("C:\\Users\\Lauren\\Documents\\ST558\\Project 2\\OnlineNewsPopularity.csv")
+```{r, eval=FALSE}
+weekday <- data.frame(days = c("weekday_is_monday", "weekday_is_tuesday", "weekday_is_wednesday", "weekday_is_thursday", "weekday_is_friday", "weekday_is_saturday", "weekday_is_sunday"))
 
-news$class <- if_else(news$shares < 1400, 0, 1)
-news$class <- factor(news$class, levels = c(0, 1), labels = c("Low", "High"))
+days <- weekday$days
 
-newsies <- news %>% filter(weekday_is_monday == 1) %>% select(class, num_hrefs, num_keywords, kw_max_avg, kw_avg_avg, self_reference_max_shares, LDA_01, LDA_02, LDA_03, title_subjectivity, starts_with("data_"))
+output_file <- paste0(days, ".md")
 
-set.seed(50)
-train <- sample(1:nrow(newsies), size = nrow(newsies)*0.7)
-test <- dplyr::setdiff(1:nrow(newsies), train)
+params <- lapply(days, FUN = function(x){list(days = x)})
 
-newsTrain <- newsies[train, ]
-newsTest <- newsies[test, ]
+reports <- tibble(output_file, params)
 
-?transmute
+apply(reports, MARGIN = 1, FUN = function(x){
+  render(input = "C:\\Users\\Lauren\\Documents\\ST558\\Project 2\\ST558_Project_2\\news.Rmd", output_file = x[[1]], params = x[[2]])
+})
 ```
 
-
-```{r}
-
-channel <- newsTrain %>% mutate(channel = ifelse(newsTrain$data_channel_is_bus == 1, "Business", 
-                       ifelse(newsTrain$data_channel_is_entertainment == 1, "Entertainment", 
-                              ifelse(newsTrain$data_channel_is_lifestyle == 1, "Lifestlye", 
-                                     ifelse(newsTrain$data_channel_is_socmed == 1, "Social Media", 
-                                            ifelse(newsTrain$data_channel_is_tech == 1, "Technology", 
-                                                   ifelse(newsTrain$data_channel_is_world == 1, "World", "Other")))))))
-```
-
-
-```{r}
-
-
-kable(newsies %>% group_by(class) %>% summarise(mean(title_subjectivity), mean(num_keywords), mean(num_hrefs)))
-
-ggplot(channel, aes(x=class, fill = channel)) +
-  geom_bar(position = "dodge")
-
-ggplot(newsTrain, aes(x = class, y = num_keywords)) + 
-  geom_count(aes(color = ..n.., size = ..n..)) +
-  guides(color = "legend")
-
-p1 <- ggplot(channel, aes(x = class, y = LDA_01)) + 
-  geom_point(aes(color = channel))
-
-p2 <- ggplot(channel, aes(x = class, y = LDA_02)) + 
-  geom_point(aes(color = channel))
-
-p3 <- ggplot(channel, aes(x = class, y = LDA_03)) + 
-  geom_point(aes(color = channel))
-
-plot_grid(p1, p2, p3)
-```
-
-
-```{r}
-trctrl <- trainControl(method = "repeatedcv", number = 10, repeats = 3)
-
-set.seed(10)
-
-knnFit <- train(class ~ ., data = newsTrain, method = "knn",
-                trControl = trctrl, 
-                preProcess = c("center", "scale"),
-                tuneLength = 10
-                )
-knnFit
-
-```
-
-```{r}
-plot(knnFit$results[,1], knnFit$results[,2], xlab = "K value",
-     ylab = "Accuracy(Repeated Cross-Validation)", 
-     type = "o", col = "blue",
-     panel.first = grid(lty = 1)
-     )
-```
-
-
-```{r}
-testPred <- predict(knnFit, newdata = newsTest)
-testPred
-```
-
-
-```{r}
-knnFitMat <- confusionMatrix(testPred, newsTest$class)
-knnFitMat
-```
-
-
-```{r}
-tbl1 <- knnFitMat$table
-
-misClass <- 1 - sum(diag(tbl1))/sum(tbl1)
-misClass
-```
-
-
-```{r}
-set.seed(50)
-
-classTree <- train(class ~ ., data = newsTrain,
-                    method = "rpart",
-                    trControl = trctrl, 
-                    preProcess = c("center", "scale")
-                )
-
-classTree
-```
-
-```{r}
-plot(classTree$results[,1], classTree$results[,2], xlab = "cp value",
-     ylab = "Accuracy(Repeated Cross-Validation)", 
-     type = "o", col = "blue",
-     panel.first = grid(lty = 1)
-     )
-```
-
-```{r}
-classPred <- predict(classTree, newdata = newsTest)
-classPred
-```
-
-```{r}
-classFitMat <- confusionMatrix(classPred, newsTest$class)
-classFitMat
-```
-
-
-```{r}
-tbl2 <- classFitMat$table
-
-misClass2 <- 1 - sum(diag(tbl2))/sum(tbl2)
-misClass2
-```
-
-
-```{r}
-matrix(c(paste0(round(knnFitMat$overall[1]*100, 2), "%"), 
-         paste0(round(classFitMat$overall[1]*100, 2), "%"), 
-         round(misClass, 3), round(misClass2, 3)), 
-       ncol = 2, nrow = 2,
-       dimnames = list(c("k Nearest Neighbors", "Classification Tree"), 
-                       c("Model Accuracy", "Misclassification"))
-       )
-```
-
-
-```{r}
-set.seed(50)
-
-rfTree <- train(class ~ ., data = newsTrain, 
-                  method = "rf",
-                  trControl = trctrl, 
-                  preProcess = c("center", "scale")
-                )
-
-rfTree
-```
-
-
-```{r}
-plot(rfTree$results[,1], rfTree$results[,2], xlab = "mtry value",
-     ylab = "Accuracy(Repeated Cross-Validation)", 
-     type = "o", col = "blue",
-     panel.first = grid(lty = 1)
-     )
-```
-
-
-```{r}
-rfPred <- predict(rfTree, newdata = newsTest)
-
-rfFitMat <- confusionMatrix(rfPred, newsTest$class)
-rfFitMat
-```
-
-```{r}
-tbl3 <- rfFitMat$table
-
-misClass3 <- 1 - sum(diag(tbl3))/sum(tbl3)
-misClass3
-```
-
-```{r}
-matrix(c(paste0(round(knnFitMat$overall[1]*100, 2), "%"), 
-         paste0(round(classFitMat$overall[1]*100, 2), "%"),
-         paste0(round(rfFitMat$overall[1]*100, 2), "%"),
-         round(misClass, 3), round(misClass2, 3), round(misClass3, 3)), 
-       ncol = 2, nrow = 3,
-       dimnames = list(c("k Nearest Neighbors", "Classification Tree", "Random Forest" ), 
-                       c("Model Accuracy", "Misclassification"))
-       )
-```
 
