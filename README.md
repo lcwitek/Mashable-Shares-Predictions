@@ -4,7 +4,10 @@ Lauren Witek
 7/3/2020
 
 ``` r
-weekday <- data.frame(days = c("weekday_is_monday", "weekday_is_tuesday", "weekday_is_wednesday", "weekday_is_thursday", "weekday_is_friday", "weekday_is_saturday", "weekday_is_sunday"))
+weekday <- data.frame(days = c("weekday_is_monday", "weekday_is_tuesday", 
+                                "weekday_is_wednesday", "weekday_is_thursday", 
+                                "weekday_is_friday", "weekday_is_saturday", 
+                                "weekday_is_sunday"))
 
 days <- weekday$days
 
@@ -18,3 +21,6 @@ apply(reports, MARGIN = 1, FUN = function(x){
   render(input = "C:\\Users\\Lauren\\Documents\\ST558\\Project 2\\ST558_Project_2\\news.Rmd", output_file = x[[1]], params = x[[2]])
 })
 ```
+
+
+[Monday is Available Here](weekday_is_monday.md)
