@@ -1,4 +1,4 @@
-Project 2
+Friday's Predictions
 ================
 Lauren Witek
 7/3/2020
