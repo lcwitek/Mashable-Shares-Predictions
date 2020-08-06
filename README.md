@@ -1,4 +1,4 @@
-Project 2
+Mashable Shares Predictions
 ================
 Lauren Witek
 7/3/2020
